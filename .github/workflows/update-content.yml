@@ -1,0 +1,70 @@
+name: Update Content Manifest
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "content/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-manifest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Generate content manifest
+        run: node generate-manifest.js content .
+
+      - name: Backup content files
+        run: |
+          cp -r content /tmp/content-backup
+          cp content-manifest.json /tmp/content-manifest.json.backup
+
+      - name: Install git-filter-repo
+        run: pip install git-filter-repo
+
+      - name: Strip history of content/ and content-manifest.json
+        run: |
+          git filter-repo \
+            --path content/ \
+            --path content-manifest.json \
+            --invert-paths \
+            --force
+
+      - name: Restore content files
+        run: |
+          cp -r /tmp/content-backup/* content/ 2>/dev/null || mkdir -p content
+          cp -r /tmp/content-backup/. content/
+          cp /tmp/content-manifest.json.backup content-manifest.json
+
+      - name: Commit and force push
+        run: |
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add content/ content-manifest.json
+          git commit -m "chore: update content and manifest (no history)"
+          git push --force origin main
+
+      - name: Summary
+        run: |
+          echo "## Content Manifest Update :bookmark_tabs:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo ":white_check_mark: Content and manifest committed with clean history and force-pushed." >> $GITHUB_STEP_SUMMARY
