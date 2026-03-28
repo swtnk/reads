@@ -240,10 +240,36 @@ var serializeManifest = (manifest) => {
   });
 };
 
+// src/config/site.ts
+var SITE_CONFIG = {
+  url: "https://swetanksubham.com/reads",
+  defaultTheme: "light",
+  header: {
+    title: "Reads",
+    subtitle: "My thoughts, in writing",
+    homeLabel: "Home",
+    composeLabel: "Compose",
+    items: []
+  },
+  footer: {
+    textTemplate: "{count} article(s) · Designed and developed by [me](https://swetanksubham.com)"
+  },
+  home: {
+    heroTitle: "Insights, ideas, and practical engineering notes",
+    heroSubtitle: "A web-first publication with featured stories, latest updates, and weekly highlights.",
+    latestTitle: "Latest Articles",
+    featuredCount: 1,
+    latestCount: 6
+  }
+};
+
 // scripts/generate-manifest.ts
 var ROOT = path2.resolve(import.meta.dirname, "..");
 var BASE_PATH = "/reads/";
 var MANIFEST_FILE = "content-manifest.json";
+var GENERATED_DIR = "_generated";
+var OG_DIR_NAME = "og";
+var PAGES_DIR_NAME = "pages";
 var contentDir = path2.resolve(process.argv[2] ?? path2.join(ROOT, "content"));
 var outputDir = path2.resolve(process.argv[3] ?? path2.join(ROOT, "dist"));
 if (!fs2.existsSync(contentDir)) {
@@ -253,7 +279,186 @@ if (!fs2.existsSync(contentDir)) {
 if (!fs2.existsSync(outputDir)) {
   fs2.mkdirSync(outputDir, { recursive: true });
 }
+var escapeXml = (text) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
+var escapeAttr = (text) => text.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+var wrapText = (text, maxChars, maxLines) => {
+  const words = text.split(/\s+/).filter((w) => w.length > 0);
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (test.length <= maxChars) {
+      current = test;
+      continue;
+    }
+    if (!current) {
+      current = `${word.slice(0, maxChars - 1)}…`;
+      continue;
+    }
+    if (lines.length === maxLines - 1) {
+      const truncated = current.length <= maxChars - 2 ? `${current}…` : `${current.slice(0, maxChars - 1)}…`;
+      lines.push(truncated);
+      return lines;
+    }
+    lines.push(current);
+    current = word;
+  }
+  if (current && lines.length < maxLines) {
+    lines.push(current);
+  }
+  return lines;
+};
+var formatOgDate = (dateStr) => {
+  if (!dateStr)
+    return "";
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime()))
+    return dateStr;
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+};
+var articleSlug = (articleId) => articleId.replace(/\.md$/i, "");
+var siteUrl = () => SITE_CONFIG.url.replace(/\/+$/, "");
+var trimSlashes = (s) => {
+  let start = 0;
+  let end = s.length;
+  while (start < end && s[start] === "/")
+    start++;
+  while (end > start && s[end - 1] === "/")
+    end--;
+  return s.slice(start, end);
+};
+var stripBasePath = (route) => trimSlashes(route.startsWith(BASE_PATH) ? route.slice(BASE_PATH.length) : route);
+var generateOgSvg = (article) => {
+  const titleLines = wrapText(article.title, 42, 3);
+  const descLines = wrapText(article.description, 72, 3);
+  const category = article.category.toUpperCase();
+  const titleStartY = 165;
+  const titleLineHeight = 52;
+  const titleTspans = titleLines.map((line, i) => {
+    const pos = i === 0 ? `y="${titleStartY}"` : `dy="${titleLineHeight}"`;
+    return `<tspan x="80" ${pos}>${escapeXml(line)}</tspan>`;
+  }).join(`
+      `);
+  const titleEndY = titleStartY + (titleLines.length - 1) * titleLineHeight;
+  const descStartY = titleEndY + 50;
+  const descLineHeight = 28;
+  const descTspans = descLines.map((line, i) => {
+    const pos = i === 0 ? `y="${descStartY}"` : `dy="${descLineHeight}"`;
+    return `<tspan x="80" ${pos}>${escapeXml(line)}</tspan>`;
+  }).join(`
+      `);
+  const dateStr = formatOgDate(article.date);
+  const meta = [article.author, dateStr].filter(Boolean).join(" · ");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#161b22"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="80" y="65" width="56" height="4" rx="2" fill="#818cf8"/>
+  <text x="80" y="102" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#818cf8" letter-spacing="2">✦ ${escapeXml(category)}</text>
+  <text font-family="system-ui, -apple-system, sans-serif" font-size="42" font-weight="700" fill="#e6edf3">
+      ${titleTspans}
+  </text>
+  <text font-family="system-ui, -apple-system, sans-serif" font-size="18" fill="#8b949e" opacity="0.9">
+      ${descTspans}
+  </text>
+  <line x1="80" y1="530" x2="1120" y2="530" stroke="#30363d" stroke-width="1"/>
+  <text x="80" y="565" font-family="system-ui, -apple-system, sans-serif" font-size="16" fill="#8b949e">${escapeXml(meta)}</text>
+</svg>`;
+};
+var generateOgImages = (articles, outDir) => {
+  const ogDir = path2.join(outDir, GENERATED_DIR, OG_DIR_NAME);
+  let count = 0;
+  for (const article of articles) {
+    if (isUnlistedContentPath(article.id))
+      continue;
+    const slug = articleSlug(article.id);
+    const svgPath = path2.join(ogDir, `${slug}.svg`);
+    fs2.mkdirSync(path2.dirname(svgPath), { recursive: true });
+    fs2.writeFileSync(svgPath, generateOgSvg(article), "utf-8");
+    count++;
+  }
+  return count;
+};
+var buildMetaBlock = (props) => {
+  const site = siteUrl();
+  const lines = [
+    `<meta name="description" content="${escapeAttr(props.description)}" />`,
+    `<meta property="og:type" content="${props.type}" />`,
+    `<meta property="og:title" content="${escapeAttr(props.title)}" />`,
+    `<meta property="og:description" content="${escapeAttr(props.description)}" />`,
+    `<meta property="og:url" content="${escapeAttr(props.url)}" />`,
+    `<meta property="og:site_name" content="${escapeAttr(SITE_CONFIG.header.title)}" />`
+  ];
+  const hasImage = Boolean(props.image);
+  lines.push(`<meta name="twitter:card" content="${hasImage ? "summary_large_image" : "summary"}" />`, `<meta name="twitter:title" content="${escapeAttr(props.title)}" />`, `<meta name="twitter:description" content="${escapeAttr(props.description)}" />`);
+  if (props.image) {
+    const imageUrl = props.image.startsWith("http") ? props.image : `${site}${props.image}`;
+    lines.push(`<meta property="og:image" content="${escapeAttr(imageUrl)}" />`, `<meta name="twitter:image" content="${escapeAttr(imageUrl)}" />`);
+  }
+  if (props.author) {
+    lines.push(`<meta name="author" content="${escapeAttr(props.author)}" />`);
+  }
+  if (props.publishedTime) {
+    lines.push(`<meta property="article:published_time" content="${escapeAttr(props.publishedTime)}" />`);
+  }
+  if (props.tags?.length) {
+    for (const tag of props.tags) {
+      lines.push(`<meta property="article:tag" content="${escapeAttr(tag)}" />`);
+    }
+  }
+  return lines.join(`
+    `);
+};
+var injectMeta = (html, title, metaBlock) => html.replace(/<title>[^<]*<\/title>/, `<title>${escapeAttr(title)}</title>`).replace('<meta name="viewport" content="width=device-width, initial-scale=1.0" />', `<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    ${metaBlock}`);
+var generateArticlePages = (manifest, outDir) => {
+  const indexPath = path2.join(outDir, "index.html");
+  if (!fs2.existsSync(indexPath)) {
+    console.warn("index.html not found in output dir — skipping per-article HTML generation");
+    return 0;
+  }
+  const baseHtml = fs2.readFileSync(indexPath, "utf-8");
+  const site = siteUrl();
+  let count = 0;
+  for (const article of manifest.articles) {
+    if (isUnlistedContentPath(article.id))
+      continue;
+    const relative = stripBasePath(article.route);
+    if (!relative)
+      continue;
+    const slug = articleSlug(article.id);
+    const ogImagePath = `/${GENERATED_DIR}/${OG_DIR_NAME}/${slug}.png`;
+    const pageTitle = `${article.title} | ${SITE_CONFIG.header.title}`;
+    const articleUrl = `${site}/${relative}/`;
+    const meta = buildMetaBlock({
+      title: article.title,
+      description: article.description,
+      url: articleUrl,
+      type: "article",
+      image: article.cover || ogImagePath,
+      author: article.author,
+      publishedTime: article.date || undefined,
+      tags: article.tags
+    });
+    const html = injectMeta(baseHtml, pageTitle, meta);
+    const articleDir = path2.join(outDir, GENERATED_DIR, PAGES_DIR_NAME, relative);
+    fs2.mkdirSync(articleDir, { recursive: true });
+    fs2.writeFileSync(path2.join(articleDir, "index.html"), html);
+    count++;
+  }
+  return count;
+};
 var manifest = buildManifest(contentDir, BASE_PATH);
-var outputPath = path2.join(outputDir, MANIFEST_FILE);
-fs2.writeFileSync(outputPath, serializeManifest(manifest), "utf-8");
-console.log(`Generated ${MANIFEST_FILE} (${manifest.articles.length} articles) → ${outputPath}`);
+var manifestPath = path2.join(outputDir, MANIFEST_FILE);
+fs2.writeFileSync(manifestPath, serializeManifest(manifest), "utf-8");
+console.log(`Manifest: ${manifest.articles.length} articles → ${manifestPath}`);
+var ogCount = generateOgImages(manifest.articles, outputDir);
+console.log(`OG images: ${ogCount} SVGs → ${path2.join(outputDir, GENERATED_DIR, OG_DIR_NAME)}/`);
+var pageCount = generateArticlePages(manifest, outputDir);
+if (pageCount > 0) {
+  console.log(`HTML pages: ${pageCount} articles with OG meta tags`);
+}
