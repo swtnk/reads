@@ -12,3 +12,4 @@ services:
       - ./content-manifest.json:/usr/share/nginx/html/reads/content-manifest.json:ro
       - ./assets:/usr/share/nginx/html/reads/assets:ro
       - ./content:/usr/share/nginx/html/reads/content:ro
+      - ./_generated:/usr/share/nginx/html/reads/_generated:ro
