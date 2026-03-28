@@ -1,0 +1,14 @@
+services:
+  reads:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:80"
+    volumes:
+      - ./index.html:/usr/share/nginx/html/reads/index.html:ro
+      - ./404.html:/usr/share/nginx/html/reads/404.html:ro
+      - ./favicon.svg:/usr/share/nginx/html/reads/favicon.svg:ro
+      - ./content-manifest.json:/usr/share/nginx/html/reads/content-manifest.json:ro
+      - ./assets:/usr/share/nginx/html/reads/assets:ro
+      - ./content:/usr/share/nginx/html/reads/content:ro
