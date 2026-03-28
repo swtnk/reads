@@ -397,7 +397,7 @@ var buildMetaBlock = (props) => {
   lines.push(`<meta name="twitter:card" content="${hasImage ? "summary_large_image" : "summary"}" />`, `<meta name="twitter:title" content="${escapeAttr(props.title)}" />`, `<meta name="twitter:description" content="${escapeAttr(props.description)}" />`);
   if (props.image) {
     const imageUrl = props.image.startsWith("http") ? props.image : `${site}${props.image}`;
-    lines.push(`<meta property="og:image" content="${escapeAttr(imageUrl)}" />`, `<meta name="twitter:image" content="${escapeAttr(imageUrl)}" />`);
+    lines.push(`<meta property="og:image" content="${escapeAttr(imageUrl)}" />`, `<meta property="og:image:width" content="1200" />`, `<meta property="og:image:height" content="630" />`, `<meta property="og:image:type" content="image/png" />`, `<meta name="twitter:image" content="${escapeAttr(imageUrl)}" />`);
   }
   if (props.author) {
     lines.push(`<meta name="author" content="${escapeAttr(props.author)}" />`);
