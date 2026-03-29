@@ -29,34 +29,46 @@ jobs:
       - name: Generate content manifest
         run: node generate-manifest.js content .
 
-      - name: Backup content files
+      - name: Backup content and generated files
         run: |
           cp -r content /tmp/content-backup
           cp content-manifest.json /tmp/content-manifest.json.backup
+          [ -d _generated ] && cp -r _generated /tmp/generated-backup || true
 
       - name: Install git-filter-repo
         run: pip install git-filter-repo
 
-      - name: Strip history of content/ and content-manifest.json
+      - name: Strip history of content/, manifest, and generated assets
         run: |
           git filter-repo \
             --path content/ \
             --path content-manifest.json \
+            --path _generated/ \
             --invert-paths \
             --force
 
-      - name: Restore content files
+      - name: Restore content and generated files
         run: |
           cp -r /tmp/content-backup/* content/ 2>/dev/null || mkdir -p content
           cp -r /tmp/content-backup/. content/
           cp /tmp/content-manifest.json.backup content-manifest.json
+          [ -d /tmp/generated-backup ] && cp -r /tmp/generated-backup _generated || true
+
+      - name: Convert OG SVGs to PNGs
+        run: |
+          if [ -d _generated/og ]; then
+            sudo apt-get install -y -qq librsvg2-bin >/dev/null 2>&1
+            find _generated/og -name "*.svg" -exec sh -c 'rsvg-convert -w 1200 -h 630 "$1" -o "${1%.svg}.png"' _ {} \;
+            find _generated/og -name "*.svg" -delete
+            echo "Converted OG SVGs to PNGs"
+          fi
 
       - name: Commit and force push
         run: |
           git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add content/ content-manifest.json
+          git add content/ content-manifest.json _generated/
           git commit -m "chore: update content and manifest (no history)"
           git push --force origin main
 
