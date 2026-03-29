@@ -413,7 +413,9 @@ var buildMetaBlock = (props) => {
   return lines.join(`
     `);
 };
-var injectMeta = (html, title, metaBlock) => html.replace(/<title>[^<]*<\/title>/, `<title>${escapeAttr(title)}</title>`).replace('<meta name="viewport" content="width=device-width, initial-scale=1.0" />', `<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+var stripSiteMeta = (html) => html.replace(/\s*<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="description")[^>]*\/>/g, "").replace(/\n\s*\n/g, `
+`);
+var injectMeta = (html, title, metaBlock) => stripSiteMeta(html).replace(/<title>[^<]*<\/title>/, `<title>${escapeAttr(title)}</title>`).replace('<meta name="viewport" content="width=device-width, initial-scale=1.0" />', `<meta name="viewport" content="width=device-width, initial-scale=1.0" />
     ${metaBlock}`);
 var generateArticlePages = (manifest, outDir) => {
   const indexPath = path2.join(outDir, "index.html");
