@@ -329,19 +329,19 @@ var trimSlashes = (s) => {
 };
 var stripBasePath = (route) => trimSlashes(route.startsWith(BASE_PATH) ? route.slice(BASE_PATH.length) : route);
 var generateOgSvg = (article) => {
-  const titleLines = wrapText(article.title, 42, 3);
-  const descLines = wrapText(article.description, 72, 3);
+  const titleLines = wrapText(article.title, 36, 3);
+  const descLines = wrapText(article.description, 62, 3);
   const category = article.category.toUpperCase();
-  const titleStartY = 165;
-  const titleLineHeight = 52;
+  const titleStartY = 170;
+  const titleLineHeight = 62;
   const titleTspans = titleLines.map((line, i) => {
     const pos = i === 0 ? `y="${titleStartY}"` : `dy="${titleLineHeight}"`;
     return `<tspan x="80" ${pos}>${escapeXml(line)}</tspan>`;
   }).join(`
       `);
   const titleEndY = titleStartY + (titleLines.length - 1) * titleLineHeight;
-  const descStartY = titleEndY + 50;
-  const descLineHeight = 28;
+  const descStartY = titleEndY + 55;
+  const descLineHeight = 32;
   const descTspans = descLines.map((line, i) => {
     const pos = i === 0 ? `y="${descStartY}"` : `dy="${descLineHeight}"`;
     return `<tspan x="80" ${pos}>${escapeXml(line)}</tspan>`;
@@ -358,20 +358,52 @@ var generateOgSvg = (article) => {
   </defs>
   <rect width="1200" height="630" fill="url(#bg)"/>
   <rect x="80" y="65" width="56" height="4" rx="2" fill="#818cf8"/>
-  <text x="80" y="102" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#818cf8" letter-spacing="2">✦ ${escapeXml(category)}</text>
-  <text font-family="system-ui, -apple-system, sans-serif" font-size="42" font-weight="700" fill="#e6edf3">
+  <text x="80" y="106" font-family="system-ui, -apple-system, sans-serif" font-size="17" font-weight="600" fill="#818cf8" letter-spacing="2">✦ ${escapeXml(category)}</text>
+  <text font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="700" fill="#e6edf3">
       ${titleTspans}
   </text>
-  <text font-family="system-ui, -apple-system, sans-serif" font-size="18" fill="#8b949e" opacity="0.9">
+  <text font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#8b949e" opacity="0.9">
       ${descTspans}
   </text>
   <line x1="80" y1="530" x2="1120" y2="530" stroke="#30363d" stroke-width="1"/>
-  <text x="80" y="565" font-family="system-ui, -apple-system, sans-serif" font-size="16" fill="#8b949e">${escapeXml(meta)}</text>
+  <text x="80" y="568" font-family="system-ui, -apple-system, sans-serif" font-size="19" fill="#8b949e">${escapeXml(meta)}</text>
+</svg>`;
+};
+var generateSiteOgSvg = () => {
+  const title = SITE_CONFIG.header.title;
+  const subtitle = SITE_CONFIG.header.subtitle;
+  const heroLines = wrapText(SITE_CONFIG.home.heroTitle, 36, 3);
+  const heroStartY = 200;
+  const heroLineHeight = 62;
+  const heroTspans = heroLines.map((line, i) => {
+    const pos = i === 0 ? `y="${heroStartY}"` : `dy="${heroLineHeight}"`;
+    return `<tspan x="80" ${pos}>${escapeXml(line)}</tspan>`;
+  }).join(`
+      `);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#161b22"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="80" y="85" width="56" height="4" rx="2" fill="#818cf8"/>
+  <text x="80" y="140" font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="700" fill="#e6edf3">${escapeXml(title)}</text>
+  <text x="232" y="140" font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#8b949e" dominant-baseline="alphabetic">${escapeXml(subtitle)}</text>
+  <text font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="700" fill="#e6edf3">
+      ${heroTspans}
+  </text>
+  <line x1="80" y1="530" x2="1120" y2="530" stroke="#30363d" stroke-width="1"/>
+  <text x="80" y="568" font-family="system-ui, -apple-system, sans-serif" font-size="19" fill="#8b949e">${escapeXml(SITE_CONFIG.url)}</text>
 </svg>`;
 };
 var generateOgImages = (articles, outDir) => {
   const ogDir = path2.join(outDir, GENERATED_DIR, OG_DIR_NAME);
   let count = 0;
+  const siteSvgPath = path2.join(ogDir, "site.svg");
+  fs2.mkdirSync(path2.dirname(siteSvgPath), { recursive: true });
+  fs2.writeFileSync(siteSvgPath, generateSiteOgSvg(), "utf-8");
   for (const article of articles) {
     if (isUnlistedContentPath(article.id))
       continue;
@@ -413,7 +445,7 @@ var buildMetaBlock = (props) => {
   return lines.join(`
     `);
 };
-var stripSiteMeta = (html) => html.replace(/\s*<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="description")[^>]*\/>/g, "").replace(/\n\s*\n/g, `
+var stripSiteMeta = (html) => html.replaceAll(/\s*<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="description")[^>]*\/>/g, "").replaceAll(/\n\s*\n/g, `
 `);
 var injectMeta = (html, title, metaBlock) => stripSiteMeta(html).replace(/<title>[^<]*<\/title>/, `<title>${escapeAttr(title)}</title>`).replace('<meta name="viewport" content="width=device-width, initial-scale=1.0" />', `<meta name="viewport" content="width=device-width, initial-scale=1.0" />
     ${metaBlock}`);
