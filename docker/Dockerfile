@@ -1,9 +1,14 @@
 FROM nginx:alpine
 
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+RUN apk add --no-cache inotify-tools nodejs npm \
+    && npm install -g bun
 
-COPY index.html 404.html favicon.svg content-manifest.json /usr/share/nginx/html/reads/
-COPY assets/ /usr/share/nginx/html/reads/assets/
-COPY content/ /usr/share/nginx/html/reads/content/
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+WORKDIR /app
 
 EXPOSE 80
+
+ENTRYPOINT ["/entrypoint.sh"]
