@@ -10,10 +10,19 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   update-manifest:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout repository (full history)
@@ -68,9 +77,30 @@ jobs:
           git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add content/ content-manifest.json _generated/
+          git add .
           git commit -m "chore: update content and manifest (no history)"
           git push --force origin main
+
+      - name: Build site directory
+        run: |
+          mkdir -p _site
+          find . -maxdepth 1 ! -name '.git' ! -name '_site' ! -name '.' ! -name '..' -exec cp -r {} _site/ \;
+          if [ -d _site/_generated/pages ]; then
+            cp -r _site/_generated/pages/* _site/
+            echo "Overlaid article pages for OG support"
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
       - name: Summary
         run: |
